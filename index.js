@@ -5,7 +5,11 @@ const AWS = require('aws-sdk');
 const cors = require('cors');
 const app = express();
 
-app.use(cors());
+// ✅ Configuración correcta de CORS (acepta localhost y frontend en producción)
+app.use(cors({
+  origin: ['http://localhost:3000', 'https://tu-frontend-produccion.com'],
+  methods: ['GET', 'POST'],
+}));
 
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_KEY,
@@ -118,8 +122,7 @@ app.get('/registros', async (req, res) => {
   }
 });
 
-
-// NUEVO: GENERAR SIGNED URL PARA DESCARGA
+// GENERAR SIGNED URL PARA DESCARGA
 app.get('/archivo/:key', async (req, res) => {
   const { key } = req.params;
 
