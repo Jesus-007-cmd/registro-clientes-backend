@@ -3,9 +3,11 @@ const express = require('express');
 const multer = require('multer');
 const AWS = require('aws-sdk');
 const cors = require('cors');
+const { v4: uuidv4 } = require('uuid');
+
 const app = express();
 
-// ✅ Configuración correcta de CORS (acepta localhost y frontend en producción)
+// ✅ Configuración de CORS (ajusta tu dominio final aquí)
 app.use(cors({
   origin: ['http://localhost:3000', 'https://tu-frontend-produccion.com'],
   methods: ['GET', 'POST'],
@@ -20,7 +22,7 @@ const s3 = new AWS.S3({
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// SUBIDA DE ARCHIVOS Y DATOS
+// SUBIDA DE ARCHIVOS Y DATOS CON IDENTIFICADOR
 app.post('/upload', upload.fields([
   { name: 'ine' },
   { name: 'comprobanteDomicilio' },
@@ -30,12 +32,12 @@ app.post('/upload', upload.fields([
 ]), async (req, res) => {
   try {
     const formData = req.body;
-    const razonSocialKey = formData.razonSocial.replace(/\s+/g, '_');
+    const id = uuidv4();
 
-    const jsonBuffer = Buffer.from(JSON.stringify(formData, null, 2));
+    const jsonBuffer = Buffer.from(JSON.stringify({ id, ...formData }, null, 2));
     const jsonParams = {
       Bucket: 'registro-clientes-docs',
-      Key: `${razonSocialKey}_datos.json`,
+      Key: `${id}.json`,
       Body: jsonBuffer,
       ContentType: 'application/json',
     };
@@ -46,21 +48,21 @@ app.post('/upload', upload.fields([
       for (const file of files) {
         const fileParams = {
           Bucket: 'registro-clientes-docs',
-          Key: `${razonSocialKey}_${fieldName}_${file.originalname}`,
+          Key: `${id}_${fieldName}_${file.originalname}`,
           Body: file.buffer,
         };
         await s3.upload(fileParams).promise();
       }
     }
 
-    res.json({ message: '✅ Datos y archivos subidos correctamente a S3' });
+    res.json({ message: '✅ Datos y archivos subidos correctamente a S3', id });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: '❌ Error al subir datos/archivos', details: err });
   }
 });
 
-// OBTENER CONTENIDO DE UN ARCHIVO JSON
+// OBTENER CONTENIDO DE UN REGISTRO
 app.get('/registro/:key', async (req, res) => {
   const { key } = req.params;
 
@@ -71,7 +73,6 @@ app.get('/registro/:key', async (req, res) => {
     }).promise();
 
     const jsonContent = JSON.parse(data.Body.toString('utf-8'));
-
     res.json(jsonContent);
   } catch (err) {
     console.error(err);
@@ -79,42 +80,39 @@ app.get('/registro/:key', async (req, res) => {
   }
 });
 
-// LISTAR REGISTROS Y ARCHIVOS RELACIONADOS
+// LISTAR REGISTROS AGRUPADOS POR ID
 app.get('/registros', async (req, res) => {
   try {
     const data = await s3.listObjectsV2({
       Bucket: 'registro-clientes-docs',
     }).promise();
 
-    const grouped = {};
+    const registrosMap = {};
 
     data.Contents.forEach(item => {
       const key = item.Key;
-      let baseName = '';
+      const parts = key.split('_');
+      const idPart = parts[0].split('.')[0]; // captura el ID (antes del primer _ o .)
 
-      if (key.endsWith('_datos.json')) {
-        baseName = key.replace('_datos.json', '');
-        if (!grouped[baseName]) {
-          grouped[baseName] = {
-            registro: key,
-            archivos: [],
-          };
-        } else {
-          grouped[baseName].registro = key;
-        }
+      if (key.endsWith('.json')) {
+        registrosMap[idPart] = {
+          id: idPart,
+          registro: key,
+          archivos: [],
+        };
       } else {
-        baseName = key.split('_')[0];
-        if (!grouped[baseName]) {
-          grouped[baseName] = {
+        if (!registrosMap[idPart]) {
+          registrosMap[idPart] = {
+            id: idPart,
             registro: null,
             archivos: [],
           };
         }
-        grouped[baseName].archivos.push(key);
+        registrosMap[idPart].archivos.push(key);
       }
     });
 
-    const result = Object.values(grouped);
+    const result = Object.values(registrosMap);
     res.json({ registros: result });
   } catch (err) {
     console.error(err);
