@@ -86,7 +86,7 @@ app.get('/registros', async (req, res) => {
 
     data.Contents.forEach(item => {
       const key = item.Key;
-      const baseName = key.split('_datos.json')[0]; // extraer base
+      const baseName = key.split('_datos.json')[0];
 
       if (key.endsWith('_datos.json')) {
         if (!grouped[baseName]) {
@@ -96,7 +96,7 @@ app.get('/registros', async (req, res) => {
           };
         }
       } else {
-        const baseFile = key.split('_')[0]; // extraer base del archivo
+        const baseFile = key.split('_')[0];
         if (!grouped[baseFile]) {
           grouped[baseFile] = {
             registro: null,
@@ -112,6 +112,25 @@ app.get('/registros', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: '❌ Error al listar registros', details: err });
+  }
+});
+
+// NUEVO: GENERAR SIGNED URL PARA DESCARGA
+app.get('/archivo/:key', async (req, res) => {
+  const { key } = req.params;
+
+  const params = {
+    Bucket: 'registro-clientes-docs',
+    Key: key,
+    Expires: 900, // 15 minutos
+  };
+
+  try {
+    const url = s3.getSignedUrl('getObject', params);
+    res.json({ url });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: '❌ Error al generar link firmado', details: err });
   }
 });
 
