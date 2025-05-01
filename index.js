@@ -26,10 +26,12 @@ app.post('/upload', upload.fields([
 ]), async (req, res) => {
   try {
     const formData = req.body;
+    const razonSocialKey = formData.razonSocial.replace(/\s+/g, '_');
+
     const jsonBuffer = Buffer.from(JSON.stringify(formData, null, 2));
     const jsonParams = {
       Bucket: 'registro-clientes-docs',
-      Key: `${formData.razonSocial.replace(/\s+/g, '_')}_datos.json`,
+      Key: `${razonSocialKey}_datos.json`,
       Body: jsonBuffer,
       ContentType: 'application/json',
     };
@@ -40,7 +42,7 @@ app.post('/upload', upload.fields([
       for (const file of files) {
         const fileParams = {
           Bucket: 'registro-clientes-docs',
-          Key: `${formData.razonSocial.replace(/\s+/g, '_')}_${fieldName}_${file.originalname}`,
+          Key: `${razonSocialKey}_${fieldName}_${file.originalname}`,
           Body: file.buffer,
         };
         await s3.upload(fileParams).promise();
@@ -54,7 +56,7 @@ app.post('/upload', upload.fields([
   }
 });
 
-// LISTAR REGISTROS
+// OBTENER CONTENIDO DE UN ARCHIVO JSON
 app.get('/registro/:key', async (req, res) => {
   const { key } = req.params;
 
@@ -72,24 +74,46 @@ app.get('/registro/:key', async (req, res) => {
     res.status(500).json({ error: '❌ Error al leer el archivo', details: err });
   }
 });
+
+// LISTAR REGISTROS Y ARCHIVOS RELACIONADOS
 app.get('/registros', async (req, res) => {
   try {
     const data = await s3.listObjectsV2({
       Bucket: 'registro-clientes-docs',
     }).promise();
 
-    const jsonFiles = data.Contents
-      .filter(item => item.Key.endsWith('_datos.json'))
-      .map(item => item.Key);
+    const grouped = {};
 
-    res.json({ registros: jsonFiles });
+    data.Contents.forEach(item => {
+      const key = item.Key;
+      const baseName = key.split('_datos.json')[0]; // extraer base
+
+      if (key.endsWith('_datos.json')) {
+        if (!grouped[baseName]) {
+          grouped[baseName] = {
+            registro: key,
+            archivos: [],
+          };
+        }
+      } else {
+        const baseFile = key.split('_')[0]; // extraer base del archivo
+        if (!grouped[baseFile]) {
+          grouped[baseFile] = {
+            registro: null,
+            archivos: [],
+          };
+        }
+        grouped[baseFile].archivos.push(key);
+      }
+    });
+
+    const result = Object.values(grouped);
+    res.json({ registros: result });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: '❌ Error al listar registros', details: err });
   }
 });
-
-
 
 const port = process.env.PORT || 4000;
 app.listen(port, () => console.log(`🚀 Backend escuchando en port ${port}`));
