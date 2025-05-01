@@ -9,7 +9,7 @@ const app = express();
 
 // ✅ Configuración de CORS (ajusta tu dominio final aquí)
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://tu-frontend-produccion.com'],
+  origin: ['http://localhost:3000', 'https://registro-clientes.netlify.app'],
   methods: ['GET', 'POST'],
 }));
 
