@@ -55,20 +55,24 @@ app.post('/upload', upload.fields([
 });
 
 // LISTAR REGISTROS
-app.get('/registros', async (req, res) => {
+app.get('/registro/:key', async (req, res) => {
+  const { key } = req.params;
+
   try {
-    const data = await s3.listObjectsV2({
+    const data = await s3.getObject({
       Bucket: 'registro-clientes-docs',
-      Prefix: '', // puedes filtrar si quieres solo por json: Prefix: '_datos.json'
+      Key: key,
     }).promise();
 
-    const jsonFiles = data.Contents.filter(item => item.Key.endsWith('_datos.json')).map(item => item.Key);
+    const jsonContent = JSON.parse(data.Body.toString('utf-8'));
 
-    res.json({ registros: jsonFiles });
+    res.json(jsonContent);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: '❌ Error al listar registros', details: err });
+    res.status(500).json({ error: '❌ Error al leer el archivo', details: err });
   }
 });
 
-app.listen(4000, () => console.log('🚀 Backend escuchando en http://localhost:4000'));
+
+const port = process.env.PORT || 4000;
+app.listen(port, () => console.log(`🚀 Backend escuchando en port ${port}`));
