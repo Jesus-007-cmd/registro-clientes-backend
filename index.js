@@ -86,24 +86,27 @@ app.get('/registros', async (req, res) => {
 
     data.Contents.forEach(item => {
       const key = item.Key;
-      const baseName = key.split('_datos.json')[0];
+      let baseName = '';
 
       if (key.endsWith('_datos.json')) {
+        baseName = key.replace('_datos.json', '');
         if (!grouped[baseName]) {
           grouped[baseName] = {
             registro: key,
             archivos: [],
           };
+        } else {
+          grouped[baseName].registro = key;
         }
       } else {
-        const baseFile = key.split('_')[0];
-        if (!grouped[baseFile]) {
-          grouped[baseFile] = {
+        baseName = key.split('_')[0];
+        if (!grouped[baseName]) {
+          grouped[baseName] = {
             registro: null,
             archivos: [],
           };
         }
-        grouped[baseFile].archivos.push(key);
+        grouped[baseName].archivos.push(key);
       }
     });
 
@@ -114,6 +117,7 @@ app.get('/registros', async (req, res) => {
     res.status(500).json({ error: '❌ Error al listar registros', details: err });
   }
 });
+
 
 // NUEVO: GENERAR SIGNED URL PARA DESCARGA
 app.get('/archivo/:key', async (req, res) => {
