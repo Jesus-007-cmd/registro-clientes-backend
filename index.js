@@ -72,6 +72,23 @@ app.get('/registro/:key', async (req, res) => {
     res.status(500).json({ error: '❌ Error al leer el archivo', details: err });
   }
 });
+app.get('/registros', async (req, res) => {
+  try {
+    const data = await s3.listObjectsV2({
+      Bucket: 'registro-clientes-docs',
+    }).promise();
+
+    const jsonFiles = data.Contents
+      .filter(item => item.Key.endsWith('_datos.json'))
+      .map(item => item.Key);
+
+    res.json({ registros: jsonFiles });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: '❌ Error al listar registros', details: err });
+  }
+});
+
 
 
 const port = process.env.PORT || 4000;
